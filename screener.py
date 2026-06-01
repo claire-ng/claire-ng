@@ -1,9 +1,8 @@
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# A broad but manageable default watchlist
 DEFAULT_TICKERS = [
     # Mega-cap tech
     "AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA", "AVGO",
@@ -24,11 +23,24 @@ DEFAULT_TICKERS = [
 ]
 
 
+def _rsi(series: pd.Series, length: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(com=length - 1, min_periods=length).mean()
+    avg_loss = loss.ewm(com=length - 1, min_periods=length).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    return 100 - (100 / (1 + rs))
+
+
+def _ema(series: pd.Series, length: int) -> pd.Series:
+    return series.ewm(span=length, adjust=False).mean()
+
+
 def _fetch_one(ticker: str) -> dict | None:
     try:
         t = yf.Ticker(ticker)
         hist = t.fast_info
-        # 60-day history for RSI + volume avg
         df = t.history(period="60d", interval="1d", auto_adjust=True)
         if df.empty or len(df) < 14:
             return None
@@ -44,11 +56,9 @@ def _fetch_one(ticker: str) -> dict | None:
         avg_volume = float(df["Volume"].iloc[-20:].mean())
         volume_ratio = volume / avg_volume if avg_volume > 0 else 0
 
-        # RSI (14)
-        rsi_series = ta.rsi(df["Close"], length=14)
-        rsi = float(rsi_series.iloc[-1]) if rsi_series is not None and not rsi_series.empty else None
+        rsi_series = _rsi(df["Close"])
+        rsi = float(rsi_series.iloc[-1]) if not rsi_series.empty else None
 
-        # 52-week high/low from info (best-effort)
         try:
             week52_high = float(hist.fifty_two_week_high)
             week52_low = float(hist.fifty_two_week_low)
@@ -68,7 +78,7 @@ def _fetch_one(ticker: str) -> dict | None:
             "% Change": round(pct_change, 2),
             "Volume": int(volume),
             "Vol / Avg": round(volume_ratio, 2),
-            "RSI (14)": round(rsi, 1) if rsi is not None else None,
+            "RSI (14)": round(rsi, 1) if rsi is not None and not np.isnan(rsi) else None,
             "52W High": round(week52_high, 2) if week52_high else None,
             "52W Low": round(week52_low, 2) if week52_low else None,
             "% from High": round(pct_from_high, 1) if pct_from_high is not None else None,
@@ -102,12 +112,7 @@ def fetch_chart_data(ticker: str, period: str = "5d", interval: str = "5m") -> p
     if df.empty:
         return df
     df.index = df.index.tz_localize(None) if df.index.tz is not None else df.index
-    # Add indicators
-    df["EMA9"] = ta.ema(df["Close"], length=9)
-    df["EMA20"] = ta.ema(df["Close"], length=20)
-    df["RSI"] = ta.rsi(df["Close"], length=14)
-    macd = ta.macd(df["Close"])
-    if macd is not None:
-        df["MACD"] = macd.iloc[:, 0]
-        df["MACD_signal"] = macd.iloc[:, 1]
+    df["EMA9"] = _ema(df["Close"], 9)
+    df["EMA20"] = _ema(df["Close"], 20)
+    df["RSI"] = _rsi(df["Close"])
     return df
