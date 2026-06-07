@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 
 from screener import DEFAULT_TICKERS, fetch_screen, fetch_chart_data
 from portfolio import load_positions, save_positions, enrich_portfolio
+import daily_learn
 
 st.set_page_config(
     page_title="Day Trading Dashboard",
@@ -16,7 +17,7 @@ st.set_page_config(
 st.title("📈 Day Trading Dashboard")
 st.caption("Data via Yahoo Finance · prices delayed ~15 min")
 
-tab_screen, tab_portfolio = st.tabs(["Stock Screener", "Portfolio"])
+tab_screen, tab_portfolio, tab_learn = st.tabs(["Stock Screener", "Portfolio", "🧠 Daily Learning"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — SCREENER
@@ -285,3 +286,6 @@ with tab_portfolio:
     )
     pie.update_layout(template="plotly_dark", height=360, margin=dict(t=20))
     st.plotly_chart(pie, use_container_width=True)
+
+with tab_learn:
+    daily_learn.render()
