@@ -72,8 +72,15 @@ def _fetch_one(ticker: str) -> dict | None:
         except Exception:
             pass
 
+        name = None
+        try:
+            name = t.info.get("shortName") or t.info.get("longName")
+        except Exception:
+            pass
+
         return {
             "Ticker": ticker,
+            "Name": name or ticker,
             "Price": round(close, 2),
             "% Change": round(pct_change, 2),
             "Volume": int(volume),
@@ -103,7 +110,8 @@ def fetch_screen(tickers: list[str], max_workers: int = 12) -> pd.DataFrame:
     df = pd.DataFrame(results)
     df.sort_values("% Change", ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
-    return df
+    cols = ["Ticker", "Name"] + [c for c in df.columns if c not in ("Ticker", "Name")]
+    return df[cols]
 
 
 def fetch_chart_data(ticker: str, period: str = "5d", interval: str = "5m") -> pd.DataFrame:
