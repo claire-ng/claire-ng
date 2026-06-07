@@ -99,8 +99,8 @@ with tab_screen:
 
         styled = (
             filtered.style
-            .applymap(colour_pct, subset=["% Change", "% from High"])
-            .applymap(colour_rsi, subset=["RSI (14)"])
+            .map(colour_pct, subset=["% Change", "% from High"])
+            .map(colour_rsi, subset=["RSI (14)"])
             .format({
                 "Price": "${:.2f}",
                 "% Change": "{:+.2f}%",
@@ -257,7 +257,7 @@ with tab_portfolio:
 
     pdf_styled = (
         pdf.style
-        .applymap(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
+        .map(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
         .format({
             "Shares": "{:.3f}",
             "Avg Cost": "${:.2f}",
