@@ -258,7 +258,7 @@ with tab_portfolio:
 
     pdf_styled = (
         pdf.style
-        .applymap(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
+        .map(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
         .format({
             "Shares": "{:.3f}",
             "Avg Cost": "${:.2f}",
