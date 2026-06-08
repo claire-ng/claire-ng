@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import datetime
 import random
-import db
 
 CATEGORIES = [
     ("🔭", "Astronomy"), ("🧬", "Biology"), ("🎨", "Art"), ("💰", "Economics"),
@@ -68,7 +67,7 @@ def get_daily_articles(seed: int) -> list[dict]:
     return articles
 
 
-def render_card(article: dict, idx: int, user_email: str | None, saved: dict):
+def render_card(article: dict, idx: int, saved: dict):
     title = article["title"]
     extract = article["extract"]
     url = article.get("url", "#")
@@ -90,15 +89,15 @@ def render_card(article: dict, idx: int, user_email: str | None, saved: dict):
             st.image(thumbnail, use_container_width=True)
         with c2:
             st.markdown(content_html, unsafe_allow_html=True)
-            _render_card_actions(title, url, article, is_saved, user_email, saved, idx)
+            _render_card_actions(title, url, article, is_saved, saved, idx)
     else:
         st.markdown(content_html, unsafe_allow_html=True)
-        _render_card_actions(title, url, article, is_saved, user_email, saved, idx)
+        _render_card_actions(title, url, article, is_saved, saved, idx)
 
     st.markdown("<div style='margin-bottom:12px'></div>", unsafe_allow_html=True)
 
 
-def _render_card_actions(title, url, article, is_saved, user_email, saved, idx):
+def _render_card_actions(title, url, article, is_saved, saved, idx):
     ca, cb = st.columns([2, 1])
     with ca:
         if url and url != "#":
@@ -106,29 +105,22 @@ def _render_card_actions(title, url, article, is_saved, user_email, saved, idx):
     with cb:
         if is_saved:
             if st.button("★ Saved", key=f"unsave_{idx}_{title[:20]}"):
-                if user_email:
-                    db.delete_article(user_email, title)
-                else:
-                    saved.pop(title, None)
-                    st.session_state["guest_saved"] = saved
+                saved.pop(title, None)
+                st.session_state["saved_articles"] = saved
                 st.rerun()
         else:
             if st.button("☆ Save", key=f"save_{idx}_{title[:20]}"):
-                if user_email:
-                    db.save_article(user_email, article)
-                else:
-                    saved[title] = article
-                    st.session_state["guest_saved"] = saved
+                saved[title] = article
+                st.session_state["saved_articles"] = saved
                 st.rerun()
 
 
-def render(user_email: str | None = None):
+def render():
     today = datetime.date.today()
     day_seed = int(today.strftime("%Y%m%d"))
 
-    streak = db.get_streak(user_email) if user_email else _local_streak()
-
-    saved = db.load_saved_articles(user_email) if user_email else st.session_state.get("guest_saved", {})
+    streak = _local_streak()
+    saved = st.session_state.get("saved_articles", {})
 
     # Header with streak
     st.markdown(f"""
@@ -155,7 +147,7 @@ def render(user_email: str | None = None):
         articles = st.session_state.get("daily_articles", [])
         if articles:
             for i, art in enumerate(articles):
-                render_card(art, i, user_email, saved)
+                render_card(art, i, saved)
         else:
             st.warning("Could not load articles. Try refreshing.")
 
@@ -184,7 +176,7 @@ def render(user_email: str | None = None):
                         rng = random.Random(day_seed + hash(active))
                         art = dict(rng.choice(FALLBACK_FACTS)) | {"thumbnail": None}
                     st.session_state["explore_article"] = art
-            render_card(st.session_state["explore_article"], 2, user_email, saved)
+            render_card(st.session_state["explore_article"], 2, saved)
             if st.button("🔄 Find another"):
                 st.session_state.pop("explore_article", None)
                 st.rerun()
@@ -203,7 +195,7 @@ def render(user_email: str | None = None):
         else:
             st.markdown(f"**{len(saved)} saved article{'s' if len(saved) != 1 else ''}**")
             for i, art in enumerate(saved.values()):
-                render_card(art, i, user_email, saved)
+                render_card(art, i, saved)
 
 
 def _local_streak() -> int:

@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 from screener import DEFAULT_TICKERS, fetch_screen, fetch_chart_data
 from portfolio import enrich_portfolio
 import daily_learn
-import db
+import tools
 
 st.set_page_config(
     page_title="Dashboard",
@@ -33,32 +33,7 @@ div[data-testid="metric-container"] {
 </style>
 """, unsafe_allow_html=True)
 
-# ── User / sidebar ────────────────────────────────────────────────────────────
-user_email = db.get_user_email()
-user_name = None
-try:
-    u = st.experimental_user
-    user_name = u.name if u and u.name else None
-except Exception:
-    pass
-
 with st.sidebar:
-    if user_email:
-        initials = "".join(p[0].upper() for p in (user_name or user_email).split()[:2])
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 0 20px 0;">
-            <div style="width:40px;height:40px;border-radius:50%;background:#7c3aed;
-                        display:flex;align-items:center;justify-content:center;
-                        font-weight:700;font-size:15px;color:#fff;flex-shrink:0;">
-                {initials}
-            </div>
-            <div>
-                <div style="font-weight:600;font-size:14px;">{user_name or 'User'}</div>
-                <div style="color:#666;font-size:11px;">{user_email}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
     st.markdown("### Filters")
     pct_min, pct_max = st.slider("% Change today", -20.0, 20.0, (-20.0, 20.0), 0.5)
     vol_ratio_min = st.slider("Min volume / 20-day avg", 0.0, 10.0, 0.0, 0.1)
@@ -67,21 +42,14 @@ with st.sidebar:
     st.divider()
     st.markdown("### Watchlist")
 
-    saved_tickers = db.load_watchlist(user_email) if user_email else []
-    default_tickers = saved_tickers if saved_tickers else DEFAULT_TICKERS
-
     custom_raw = st.text_area(
         "Tickers (comma-separated)",
-        value=", ".join(default_tickers),
+        value=", ".join(DEFAULT_TICKERS),
         height=130,
     )
     custom_tickers = [t.strip().upper() for t in custom_raw.split(",") if t.strip()]
 
     run = st.button("▶ Run Screen", type="primary", use_container_width=True)
-
-    if user_email and st.button("💾 Save Watchlist", use_container_width=True):
-        db.save_watchlist(user_email, custom_tickers)
-        st.success("Watchlist saved!")
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -91,7 +59,9 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab_screen, tab_portfolio, tab_learn = st.tabs(["🔍 Screener", "💼 Portfolio", "🧠 Daily Learning"])
+tab_screen, tab_portfolio, tab_learn, tab_glossary, tab_calendar = st.tabs([
+    "🔍 Screener", "💼 Portfolio", "🧠 Daily Learning", "📖 Glossary", "📅 Calendar"
+])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — SCREENER
@@ -207,7 +177,8 @@ with tab_screen:
 with tab_portfolio:
     st.markdown("#### My Portfolio")
 
-    positions = db.load_positions(user_email) if user_email else st.session_state.get("guest_positions", [])
+    from portfolio import load_positions, save_positions
+    positions = load_positions()
 
     with st.expander("➕ Add / Edit Position", expanded=len(positions) == 0):
         with st.form("add_position"):
@@ -217,28 +188,20 @@ with tab_portfolio:
             new_cost = fc3.number_input("Avg Cost / Share ($)", min_value=0.01, step=0.01, format="%.2f")
             submitted = st.form_submit_button("Save Position", type="primary")
             if submitted and new_ticker:
-                if user_email:
-                    db.save_position(user_email, new_ticker, new_shares, new_cost)
-                    st.success(f"Saved {new_ticker}")
+                existing = next((p for p in positions if p["ticker"] == new_ticker), None)
+                if existing:
+                    existing["shares"] = new_shares
+                    existing["cost_basis"] = new_cost
                 else:
-                    guest = st.session_state.get("guest_positions", [])
-                    existing = next((p for p in guest if p["ticker"] == new_ticker), None)
-                    if existing:
-                        existing["shares"] = new_shares
-                        existing["cost_basis"] = new_cost
-                    else:
-                        guest.append({"ticker": new_ticker, "shares": new_shares, "cost_basis": new_cost})
-                    st.session_state["guest_positions"] = guest
-                    st.success(f"Saved {new_ticker} (guest)")
+                    positions.append({"ticker": new_ticker, "shares": new_shares, "cost_basis": new_cost})
+                save_positions(positions)
+                st.success(f"Saved {new_ticker}")
                 st.rerun()
 
     if positions:
         remove_ticker = st.selectbox("Remove a position", ["—"] + [p["ticker"] for p in positions])
         if remove_ticker != "—" and st.button(f"Remove {remove_ticker}", type="secondary"):
-            if user_email:
-                db.delete_position(user_email, remove_ticker)
-            else:
-                st.session_state["guest_positions"] = [p for p in positions if p["ticker"] != remove_ticker]
+            save_positions([p for p in positions if p["ticker"] != remove_ticker])
             st.rerun()
 
     st.divider()
@@ -301,4 +264,10 @@ with tab_portfolio:
 # TAB 3 — DAILY LEARNING
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_learn:
-    daily_learn.render(user_email)
+    daily_learn.render()
+
+with tab_glossary:
+    tools.render_glossary()
+
+with tab_calendar:
+    tools.render_calendar()
