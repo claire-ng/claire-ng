@@ -1,5 +1,6 @@
 import streamlit as st
 import datetime
+import requests
 
 TERMS = {
     "Yield": "The income you earn from an investment, shown as a percentage. A bond with a 5% yield pays you $5 a year for every $100 you put in. Higher yield usually means higher risk.",
@@ -47,50 +48,49 @@ TERMS = {
     "Pre-market / After-hours": "Trading that happens before the market opens (4–9:30am ET) or after it closes (4–8pm ET). Lower volume, wider spreads, more volatile.",
 }
 
-# Upcoming market events — hardcoded through end of 2025, easy to update
 CALENDAR_EVENTS = [
-    # Format: (date_str, event_type, description)
-    # Fed meetings (FOMC)
-    ("2025-07-30", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2025-09-17", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2025-11-05", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2025-12-17", "fed", "FOMC Meeting — Fed interest rate decision"),
-    # Jobs reports (first Friday of the month)
-    ("2025-07-04", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2025-08-01", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2025-09-05", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2025-10-03", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2025-11-07", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2025-12-05", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    # CPI inflation reports (approx mid-month)
-    ("2025-07-15", "inflation", "CPI Inflation Report"),
-    ("2025-08-12", "inflation", "CPI Inflation Report"),
-    ("2025-09-11", "inflation", "CPI Inflation Report"),
-    ("2025-10-15", "inflation", "CPI Inflation Report"),
-    ("2025-11-13", "inflation", "CPI Inflation Report"),
-    ("2025-12-11", "inflation", "CPI Inflation Report"),
-    # Big earnings seasons
-    ("2025-07-07", "earnings", "Q2 Earnings Season begins"),
-    ("2025-10-06", "earnings", "Q3 Earnings Season begins"),
-    # Market holidays
-    ("2025-07-04", "holiday", "Market closed — Independence Day"),
-    ("2025-09-01", "holiday", "Market closed — Labor Day"),
-    ("2025-11-27", "holiday", "Market closed — Thanksgiving"),
-    ("2025-12-25", "holiday", "Market closed — Christmas"),
-    # 2026
-    ("2026-01-28", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2026-03-18", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2026-05-06", "fed", "FOMC Meeting — Fed interest rate decision"),
-    ("2026-01-09", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2026-02-06", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2026-03-06", "jobs", "Jobs Report (Non-Farm Payrolls)"),
-    ("2026-01-15", "inflation", "CPI Inflation Report"),
-    ("2026-02-12", "inflation", "CPI Inflation Report"),
-    ("2026-03-12", "inflation", "CPI Inflation Report"),
-    ("2026-01-12", "earnings", "Q4 2025 Earnings Season begins"),
-    ("2026-01-01", "holiday", "Market closed — New Year's Day"),
-    ("2026-01-19", "holiday", "Market closed — MLK Day"),
-    ("2026-02-16", "holiday", "Market closed — Presidents' Day"),
+    # FOMC meetings 2026
+    ("2026-06-17", "fed", "FOMC Meeting — Fed interest rate decision"),
+    ("2026-07-28", "fed", "FOMC Meeting — Fed interest rate decision"),
+    ("2026-09-15", "fed", "FOMC Meeting — Fed interest rate decision"),
+    ("2026-11-03", "fed", "FOMC Meeting — Fed interest rate decision"),
+    ("2026-12-15", "fed", "FOMC Meeting — Fed interest rate decision"),
+    # Jobs reports 2026 (first Friday of each month)
+    ("2026-06-05", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-07-10", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-08-07", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-09-04", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-10-02", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-11-06", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2026-12-04", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    # CPI reports 2026 (mid-month)
+    ("2026-06-11", "inflation", "CPI Inflation Report"),
+    ("2026-07-14", "inflation", "CPI Inflation Report"),
+    ("2026-08-13", "inflation", "CPI Inflation Report"),
+    ("2026-09-11", "inflation", "CPI Inflation Report"),
+    ("2026-10-14", "inflation", "CPI Inflation Report"),
+    ("2026-11-12", "inflation", "CPI Inflation Report"),
+    ("2026-12-10", "inflation", "CPI Inflation Report"),
+    # Earnings seasons 2026
+    ("2026-07-13", "earnings", "Q2 2026 Earnings Season begins"),
+    ("2026-10-12", "earnings", "Q3 2026 Earnings Season begins"),
+    # Market holidays 2026
+    ("2026-07-03", "holiday", "Market closed — Independence Day (observed)"),
+    ("2026-09-07", "holiday", "Market closed — Labor Day"),
+    ("2026-11-26", "holiday", "Market closed — Thanksgiving"),
+    ("2026-12-25", "holiday", "Market closed — Christmas"),
+    # 2027
+    ("2027-01-01", "holiday", "Market closed — New Year's Day"),
+    ("2027-01-18", "holiday", "Market closed — MLK Day"),
+    ("2027-01-08", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2027-02-05", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2027-03-05", "jobs", "Jobs Report (Non-Farm Payrolls)"),
+    ("2027-01-14", "inflation", "CPI Inflation Report"),
+    ("2027-02-11", "inflation", "CPI Inflation Report"),
+    ("2027-03-11", "inflation", "CPI Inflation Report"),
+    ("2027-01-11", "earnings", "Q4 2026 Earnings Season begins"),
+    ("2027-01-26", "fed", "FOMC Meeting — Fed interest rate decision"),
+    ("2027-03-16", "fed", "FOMC Meeting — Fed interest rate decision"),
 ]
 
 EVENT_STYLES = {
@@ -102,34 +102,78 @@ EVENT_STYLES = {
 }
 
 
+def _search_wikipedia(query: str) -> list[dict]:
+    """Search Wikipedia and return top results with summaries."""
+    try:
+        # Search for matching articles
+        search_url = "https://en.wikipedia.org/w/api.php"
+        params = {
+            "action": "query", "list": "search", "srsearch": query + " finance",
+            "srlimit": 4, "format": "json",
+        }
+        r = requests.get(search_url, params=params, timeout=6, headers={"User-Agent": "FinanceGlossary/1.0"})
+        results = r.json().get("query", {}).get("search", [])
+        if not results:
+            return []
+
+        # Fetch summaries for the top hits
+        articles = []
+        for hit in results[:3]:
+            title = hit["title"]
+            summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(title)}"
+            sr = requests.get(summary_url, timeout=6, headers={"User-Agent": "FinanceGlossary/1.0"})
+            data = sr.json()
+            extract = data.get("extract", "")
+            if extract and len(extract) > 60:
+                articles.append({
+                    "title": title,
+                    "extract": extract[:600] + ("…" if len(extract) > 600 else ""),
+                    "url": data.get("content_urls", {}).get("desktop", {}).get("page", "#"),
+                })
+        return articles
+    except Exception:
+        return []
+
+
 def render_glossary():
     st.markdown("#### 📖 Finance Jargon Buster")
-    st.caption("Plain-English definitions for every term that trips you up.")
+    st.caption("Built-in plain-English definitions — or search anything and we'll pull from Wikipedia.")
 
-    search = st.text_input("🔍 Search a term...", placeholder="e.g. yield, RSI, short selling")
+    search = st.text_input("🔍 Search any finance term...", placeholder="e.g. yield, hedge fund, quantitative easing")
 
-    terms = TERMS
-    if search:
-        q = search.lower()
-        terms = {k: v for k, v in TERMS.items() if q in k.lower() or q in v.lower()}
-
-    if not terms:
-        st.warning(f"No results for '{search}'. Try a different word.")
-        return
-
-    # Group by first letter
     if not search:
-        letters = sorted(set(k[0].upper() for k in terms))
+        # Show full alphabetical glossary
+        letters = sorted(set(k[0].upper() for k in TERMS))
         for letter in letters:
-            group = {k: v for k, v in terms.items() if k[0].upper() == letter}
+            group = {k: v for k, v in TERMS.items() if k[0].upper() == letter}
             st.markdown(f"**{letter}**")
             for term, definition in sorted(group.items()):
                 with st.expander(term):
                     st.write(definition)
-    else:
-        for term, definition in sorted(terms.items()):
+        return
+
+    q = search.lower()
+    local_matches = {k: v for k, v in TERMS.items() if q in k.lower() or q in v.lower()}
+
+    if local_matches:
+        st.markdown("**From our glossary:**")
+        for term, definition in sorted(local_matches.items()):
             with st.expander(term, expanded=True):
                 st.write(definition)
+        st.markdown("---")
+
+    # Always also pull from Wikipedia
+    with st.spinner(f"Searching Wikipedia for '{search}'…"):
+        wiki_results = _search_wikipedia(search)
+
+    if wiki_results:
+        st.markdown("**From Wikipedia:**")
+        for art in wiki_results:
+            with st.expander(art["title"], expanded=not local_matches):
+                st.write(art["extract"])
+                st.markdown(f"[Full article on Wikipedia →]({art['url']})")
+    elif not local_matches:
+        st.warning(f"No results found for '{search}'. Try different words.")
 
 
 def render_calendar():
