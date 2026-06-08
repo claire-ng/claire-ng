@@ -4,10 +4,22 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
+import json
+from pathlib import Path
 from screener import DEFAULT_TICKERS, fetch_screen, fetch_chart_data
 from portfolio import enrich_portfolio
 import daily_learn
 import tools
+
+WATCHLIST_FILE = Path("watchlist.json")
+
+def load_watchlist():
+    if WATCHLIST_FILE.exists():
+        return json.loads(WATCHLIST_FILE.read_text())
+    return DEFAULT_TICKERS
+
+def save_watchlist(tickers):
+    WATCHLIST_FILE.write_text(json.dumps(tickers))
 
 st.set_page_config(
     page_title="Dashboard",
@@ -44,12 +56,16 @@ with st.sidebar:
 
     custom_raw = st.text_area(
         "Tickers (comma-separated)",
-        value=", ".join(DEFAULT_TICKERS),
+        value=", ".join(load_watchlist()),
         height=130,
     )
     custom_tickers = [t.strip().upper() for t in custom_raw.split(",") if t.strip()]
 
-    run = st.button("▶ Run Screen", type="primary", use_container_width=True)
+    col_run, col_save = st.columns(2)
+    run = col_run.button("▶ Run", type="primary", use_container_width=True)
+    if col_save.button("💾 Save", use_container_width=True):
+        save_watchlist(custom_tickers)
+        st.success("Watchlist saved!")
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -208,57 +224,55 @@ with tab_portfolio:
 
     if not positions:
         st.info("No positions yet. Add some above.")
-        st.stop()
+    else:
+        if st.button("🔄 Refresh Prices", type="primary"):
+            with st.spinner("Fetching live prices…"):
+                st.session_state["pdf"] = enrich_portfolio(positions)
+        elif "pdf" not in st.session_state:
+            with st.spinner("Fetching live prices…"):
+                st.session_state["pdf"] = enrich_portfolio(positions)
 
-    if st.button("🔄 Refresh Prices", type="primary"):
-        with st.spinner("Fetching live prices…"):
-            st.session_state["pdf"] = enrich_portfolio(positions)
-    elif "pdf" not in st.session_state:
-        with st.spinner("Fetching live prices…"):
-            st.session_state["pdf"] = enrich_portfolio(positions)
+        pdf: pd.DataFrame = st.session_state.get("pdf", pd.DataFrame())
+        if pdf.empty:
+            st.warning("Could not fetch prices.")
+        else:
+            total_value = pdf["Mkt Value"].sum()
+            total_cost = pdf["Total Cost"].sum()
+            total_upl = pdf["Unrealized P&L"].sum()
+            total_day = pdf["Day P&L"].sum()
 
-    pdf: pd.DataFrame = st.session_state["pdf"]
-    if pdf.empty:
-        st.warning("Could not fetch prices.")
-        st.stop()
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Portfolio Value", f"${total_value:,.2f}")
+            m2.metric("Total Cost Basis", f"${total_cost:,.2f}")
+            m3.metric("Unrealized P&L", f"${total_upl:,.2f}",
+                      delta=f"{total_upl / total_cost * 100:+.2f}%" if total_cost else None)
+            m4.metric("Today's P&L", f"${total_day:,.2f}",
+                      delta=f"{total_day / (total_value - total_day) * 100:+.2f}%" if total_value else None)
 
-    total_value = pdf["Mkt Value"].sum()
-    total_cost = pdf["Total Cost"].sum()
-    total_upl = pdf["Unrealized P&L"].sum()
-    total_day = pdf["Day P&L"].sum()
+            st.divider()
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Portfolio Value", f"${total_value:,.2f}")
-    m2.metric("Total Cost Basis", f"${total_cost:,.2f}")
-    m3.metric("Unrealized P&L", f"${total_upl:,.2f}",
-              delta=f"{total_upl / total_cost * 100:+.2f}%" if total_cost else None)
-    m4.metric("Today's P&L", f"${total_day:,.2f}",
-              delta=f"{total_day / (total_value - total_day) * 100:+.2f}%" if total_value else None)
+            def colour_pl(val):
+                if pd.isna(val): return ""
+                return "color: #22c55e" if val > 0 else ("color: #ef4444" if val < 0 else "")
 
-    st.divider()
+            pdf_styled = (
+                pdf.style
+                .map(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
+                .format({
+                    "Shares": "{:.3f}", "Avg Cost": "${:.2f}", "Last Price": "${:.2f}",
+                    "Mkt Value": "${:,.2f}", "Total Cost": "${:,.2f}",
+                    "Unrealized P&L": "${:+,.2f}", "Unrealized %": "{:+.2f}%",
+                    "Day P&L": "${:+,.2f}", "Day %": "{:+.2f}%",
+                }, na_rep="—")
+            )
+            st.dataframe(pdf_styled, use_container_width=True)
 
-    def colour_pl(val):
-        if pd.isna(val): return ""
-        return "color: #22c55e" if val > 0 else ("color: #ef4444" if val < 0 else "")
-
-    pdf_styled = (
-        pdf.style
-        .map(colour_pl, subset=["Unrealized P&L", "Unrealized %", "Day P&L", "Day %"])
-        .format({
-            "Shares": "{:.3f}", "Avg Cost": "${:.2f}", "Last Price": "${:.2f}",
-            "Mkt Value": "${:,.2f}", "Total Cost": "${:,.2f}",
-            "Unrealized P&L": "${:+,.2f}", "Unrealized %": "{:+.2f}%",
-            "Day P&L": "${:+,.2f}", "Day %": "{:+.2f}%",
-        }, na_rep="—")
-    )
-    st.dataframe(pdf_styled, use_container_width=True)
-
-    st.divider()
-    st.markdown("#### Allocation")
-    pie = px.pie(pdf.dropna(subset=["Mkt Value"]), names="Ticker", values="Mkt Value",
-                 color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
-    pie.update_layout(template="plotly_dark", height=360, margin=dict(t=20))
-    st.plotly_chart(pie, use_container_width=True)
+            st.divider()
+            st.markdown("#### Allocation")
+            pie = px.pie(pdf.dropna(subset=["Mkt Value"]), names="Ticker", values="Mkt Value",
+                         color_discrete_sequence=px.colors.qualitative.Pastel, hole=0.4)
+            pie.update_layout(template="plotly_dark", height=360, margin=dict(t=20))
+            st.plotly_chart(pie, use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — DAILY LEARNING
