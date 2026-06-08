@@ -58,13 +58,6 @@ with st.sidebar:
             </div>
         </div>
         """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="padding:12px 0 20px 0;color:#888;font-size:13px;">
-            👤 Guest mode — data not saved<br>
-            <span style="font-size:11px;">Log in via Streamlit Cloud to save your watchlist & portfolio</span>
-        </div>
-        """, unsafe_allow_html=True)
 
     st.markdown("### Filters")
     pct_min, pct_max = st.slider("% Change today", -20.0, 20.0, (-20.0, 20.0), 0.5)
@@ -213,9 +206,6 @@ with tab_screen:
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_portfolio:
     st.markdown("#### My Portfolio")
-
-    if not user_email:
-        st.info("Log in to save your portfolio across sessions. Currently using guest mode — data will reset on page refresh.")
 
     positions = db.load_positions(user_email) if user_email else st.session_state.get("guest_positions", [])
 

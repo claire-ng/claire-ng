@@ -144,9 +144,6 @@ def render(user_email: str | None = None):
     </div>
     """, unsafe_allow_html=True)
 
-    if not user_email:
-        st.caption("💡 Log in to save your streak and bookmarks across sessions.")
-
     tab_daily, tab_explore, tab_saved = st.tabs(["✨ Today's Picks", "🔍 Explore", f"★ Saved ({len(saved)})"])
 
     with tab_daily:
