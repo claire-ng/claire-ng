@@ -54,12 +54,21 @@ with st.sidebar:
     st.divider()
     st.markdown("### Watchlist")
 
+    current = load_watchlist()
+
     custom_raw = st.text_area(
         "Tickers (comma-separated)",
-        value=", ".join(load_watchlist()),
+        value=", ".join(current),
         height=130,
     )
     custom_tickers = [t.strip().upper() for t in custom_raw.split(",") if t.strip()]
+
+    to_remove = st.multiselect("Remove tickers", options=current)
+    if to_remove:
+        if st.button("🗑️ Remove selected", use_container_width=True):
+            updated = [t for t in custom_tickers if t not in to_remove]
+            save_watchlist(updated)
+            st.rerun()
 
     col_run, col_save = st.columns(2)
     run = col_run.button("▶ Run", type="primary", use_container_width=True)
