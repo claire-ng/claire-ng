@@ -10,6 +10,7 @@ from screener import DEFAULT_TICKERS, fetch_screen, fetch_chart_data
 from portfolio import enrich_portfolio
 import daily_learn
 import tools
+import deep_dive
 
 WATCHLIST_FILE = Path("watchlist.json")
 
@@ -84,8 +85,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab_screen, tab_portfolio, tab_learn, tab_glossary, tab_calendar = st.tabs([
-    "🔍 Screener", "💼 Portfolio", "🧠 Daily Learning", "📖 Glossary", "📅 Calendar"
+tab_screen, tab_portfolio, tab_learn, tab_glossary, tab_calendar, tab_dive, tab_macro = st.tabs([
+    "🔍 Screener", "💼 Portfolio", "🧠 Daily Learning", "📖 Glossary", "📅 Calendar", "🏢 Deep Dive", "🌍 Macro"
 ])
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -294,3 +295,9 @@ with tab_glossary:
 
 with tab_calendar:
     tools.render_calendar()
+
+with tab_dive:
+    deep_dive.render_deep_dive()
+
+with tab_macro:
+    deep_dive.render_macro()
